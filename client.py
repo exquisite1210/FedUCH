@@ -50,17 +50,7 @@ def calc_dis(query_L, retrieval_L, query_dis, top_k=32):
     map = map / num_query
     return map
 
-class DistillKL(nn.Module):
-    """Distilling the Knowledge in a Neural Network"""
-    def __init__(self, T):
-        super(DistillKL, self).__init__()
-        self.T = T
 
-    def forward(self, y_s, y_t):
-        p_s = F.log_softmax(y_s/self.T, dim=1)
-        p_t = F.softmax(y_t/self.T, dim=1)
-        loss = F.kl_div(p_s, p_t, size_average=False) * (self.T**2) / y_s.shape[0]
-        return loss
 
 class Client(object):
     def __init__(self,client_id,model_img,model_txt,args,dataloader,datatrain,device):
@@ -93,12 +83,7 @@ class Client(object):
 
         self.CodeNet_I = copy.deepcopy(model_img)
         self.CodeNet_T = copy.deepcopy(model_txt)
-        self.global_model_imgs = copy.deepcopy(model_img)
-        self.global_model_txts  = copy.deepcopy(model_txt)
-        self.pre_model_img = copy.deepcopy(model_img)
-        self.pre_model_txt = copy.deepcopy(model_txt)
-        self.bestmodel_img = copy.deepcopy(model_img)
-        self.bestmodel_txt = copy.deepcopy(model_txt)
+
         self.args_I = torch.optim.SGD(self.CodeNet_I.parameters(), lr=self.args.learning_rate, momentum=self.args.momentum,
                                      weight_decay=self.args.weight_decay)
         self.args_T = torch.optim.SGD(self.CodeNet_T.parameters(), lr=self.args.learning_rate, momentum=self.args.momentum,
@@ -173,37 +158,11 @@ class Client(object):
                 self.args_T.step()
 
 
-                feat1_i, code_I = self.CodeNet_I(img)
-                feat1_t, code_T = self.CodeNet_T(txt)
-
-                feat2_i,g_img = self.global_model_imgs(img)
-                feat2_t,g_txt = self.global_model_txts(txt)
-
-                feat3_i,l_img = self.pre_model_img(img)
-                feat3_t,l_txt = self.pre_model_txt(txt)
-
-                loss_KL_img =self.KL(code_I,g_img)
-                loss_KL_txt =self.KL(code_T,g_txt)
-
-                pos_sim = self.con_criterion(feat1_i,feat2_t)/self.temperature
-                neg_sim = self.con_criterion(feat1_i,feat3_t)/self.temperature
-                con_label = torch.zeros(len(labels),device=pos_sim.device).long()
-                con_loss_img2 = F.cross_entropy(torch.stack([pos_sim,neg_sim],dim=1), con_label)
-                loss_img = loss_KL_img*0.7 + con_loss_img2*0.3
-                self.args_I.zero_grad()
-                loss_img.backward(retain_graph=True)
-                self.args_I.step()
                 
-                pos_sim2 = self.con_criterion(feat1_t,feat2_i)/self.temperature
-                neg_sim2 = self.con_criterion(feat1_t,feat3_i)/self.temperature
-                con_label2 = torch.zeros(len(labels),device=pos_sim.device).long()
-                con_loss_txt2 = F.cross_entropy(torch.stack([pos_sim2,neg_sim2],dim=1), con_label2)
 
-                loss_txt = loss_KL_txt*0.7+con_loss_txt2*0.3
 
-                self.args_T.zero_grad()
-                loss_txt.backward(retain_graph=True)
-                self.args_T.step()
+                
+                
 
                 loss1, loss2, loss3, loss4, loss5, loss6 = all_los
 
